@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Perfis: a plataforma administra tudo; usuários cliente ficam limitados ao conteúdo liberado.
+enum UserRole {
+  PLATFORM_ADMIN
+  CLIENT_ADMIN
+  CLIENT_EDITOR
+  CLIENT_VIEWER
+}
+
+// Estados de publicação que controlam a visibilidade dos artigos.
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// Ciclo da fila de pedidos: o usuário só é criado depois da aprovação.
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Empresa cliente e os vínculos de categorias que ela pode consultar.
+model Company {
+  id                  String                      @id @default(uuid()) @db.Uuid
+  name                String
+  document            String?                     @unique
+  active              Boolean                     @default(true)
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  users               User[]
+  categoryPermissions CompanyCategoryPermission[]
+
+  @@index([active])
+}
+
+// Conta de acesso. PasswordHash nunca deve sair em respostas da API.
+model User {
+  id                 String    @id @default(uuid()) @db.Uuid
+  companyId          String?   @db.Uuid
+  company            Company?  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name               String
+  email              String    @unique
+  passwordHash       String
+  role               UserRole  @default(CLIENT_VIEWER)
+  mustChangePassword Boolean   @default(true)
+  active             Boolean   @default(true)
+  passwordChangedAt  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  authoredArticles   Article[] @relation("ArticleAuthor")
+  accessRequestsReviewed AccessRequest[] @relation("AccessRequestReviewer")
+
+  @@index([companyId])
+  @@index([role])
+  @@index([active])
+}
+
+// Pedido público de acesso, visível somente ao PLATFORM_ADMIN após a criação.
+model AccessRequest {
+  id              String              @id @default(uuid()) @db.Uuid
+  name            String
+  email           String
+  companyName     String
+  companyDocument String?
+  message         String?             @db.Text
+  status          AccessRequestStatus @default(PENDING)
+  reviewedAt      DateTime?
+  reviewedById    String?             @db.Uuid
+  reviewedBy      User?               @relation("AccessRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  rejectionReason String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+// Árvore usada para organizar procedimentos no portal do cliente.
+model Category {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  name               String
+  slug               String                      @unique
+  description        String?
+  parentId           String?                     @db.Uuid
+  parent             Category?                   @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children           Category[]                  @relation("CategoryTree")
+  sortOrder          Int                         @default(0)
+  active             Boolean                     @default(true)
+  articles           Article[]
+  companyPermissions CompanyCategoryPermission[]
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  @@index([parentId])
+  @@index([active])
+}
+
+// Procedimento publicado pela BlueCat, opcionalmente com vídeo do YouTube.
+model Article {
+  id          String        @id @default(uuid()) @db.Uuid
+  title       String
+  slug        String        @unique
+  summary     String?
+  content     String        @db.Text
+  videoUrl    String?
+  status      ArticleStatus @default(DRAFT)
+  categoryId  String        @db.Uuid
+  category    Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  authorId    String        @db.Uuid
+  author      User          @relation("ArticleAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([publishedAt])
+}
+
+// Permissão por empresa/categoria; ausência do vínculo significa sem acesso.
+model CompanyCategoryPermission {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @db.Uuid
+  categoryId String   @db.Uuid
+  canView    Boolean  @default(true)
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([companyId, categoryId])
+  @@index([companyId, canView])
+}

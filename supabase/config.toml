@@ -1,0 +1,4 @@
+# O login e a solicitação pública chegam sem JWT; a Edge Function valida o JWT
+# quando a rota exigir sessão. Não delegue essa decisão somente ao gateway.
+[functions.api]
+verify_jwt = false

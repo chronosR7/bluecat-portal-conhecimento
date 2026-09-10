@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+coverage/
+*.log
+.DS_Store
+prisma/dev.db
+prisma/dev.db-journal
+supabase/.temp/
