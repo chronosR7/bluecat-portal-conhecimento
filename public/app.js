@@ -147,14 +147,25 @@
     };
     let response;
     if (hasSupabaseConfig) {
-      const { data: sessionData } = await supabaseClient.auth.getSession();
-      if (sessionData.session?.access_token)
-        headers.Authorization = `Bearer ${sessionData.session.access_token}`;
-      response = await fetch(`${API_BASE}${path}`, {
-        ...options,
-        headers,
-        credentials: "omit",
-      });
+      // O login começa sem sessão; consultar getSession antes dele pode tentar
+      // renovar um token antigo e mascarar o erro real como "Failed to fetch".
+      if (path !== "/auth/login") {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        if (sessionData.session?.access_token)
+          headers.Authorization = `Bearer ${sessionData.session.access_token}`;
+      }
+      headers.apikey = SUPABASE_ANON_KEY;
+      try {
+        response = await fetch(`${API_BASE}${path}`, {
+          ...options,
+          headers,
+          credentials: "omit",
+        });
+      } catch {
+        throw new Error(
+          "Não foi possível conectar ao serviço de autenticação.",
+        );
+      }
     } else {
       // Compatibilidade local: o NestJS continua disponível em localhost.
       response = await fetch(`/api${path}`, {
