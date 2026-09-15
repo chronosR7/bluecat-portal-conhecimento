@@ -312,7 +312,7 @@
                   <div class="mb-4"><div class="d-flex justify-content-between"><label class="form-label" for="login-password">Senha</label><span class="small text-muted">Use seu acesso corporativo</span></div><input class="form-control" id="login-password" type="password" autocomplete="current-password" placeholder="Digite sua senha" minlength="8" required /></div>
                   <button class="btn btn-primary w-100" id="login-submit" type="submit"><span>Entrar</span><i class="bi bi-arrow-right ms-2"></i></button>
                 </form>
-                <div class="login-request-access"><button type="button" class="btn btn-link p-0" id="forgot-password">Esqueci minha senha</button><span class="text-muted">·</span><button type="button" class="btn btn-link p-0" id="request-access">Solicitar login</button></div>
+                <div class="login-request-access"><a class="btn btn-link p-0" href="forgot-password.html">Esqueci minha senha</a><span class="text-muted">·</span><button type="button" class="btn btn-link p-0" id="request-access">Solicitar login</button></div>
               </section>
               <p class="text-center text-muted mt-4 small">BlueCat Systems</p>
             </div>
@@ -354,101 +354,6 @@
     document
       .getElementById("request-access")
       .addEventListener("click", openAccessRequestModal);
-    document
-      .getElementById("forgot-password")
-      .addEventListener("click", openForgotPasswordModal);
-  }
-
-  function recoveryRedirectUrl() {
-    // O link retorna para o mesmo endereço publicado no GitHub Pages.
-    return `${window.location.origin}${window.location.pathname}`;
-  }
-
-  function openForgotPasswordModal() {
-    if (!hasSupabaseConfig) {
-      toast("A recuperação por e-mail está disponível no ambiente publicado.", "info");
-      return;
-    }
-    openModal(
-      "Redefinir senha",
-      `<p class="text-muted small">Informe o e-mail do usuário. Enviaremos um link para escolher uma nova senha.</p><div id="forgot-password-alert"></div><form id="forgot-password-form"><label class="form-label" for="forgot-password-email">E-mail</label><input class="form-control" id="forgot-password-email" type="email" required maxlength="254" autocomplete="email" placeholder="voce@empresa.com.br" /></form>`,
-      `<button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" form="forgot-password-form" class="btn btn-primary" id="forgot-password-submit">Enviar link</button>`,
-    );
-    document
-      .getElementById("forgot-password-form")
-      .addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const email = document
-          .getElementById("forgot-password-email")
-          .value.trim()
-          .toLowerCase();
-        const submit = document.getElementById("forgot-password-submit");
-        const alert = document.getElementById("forgot-password-alert");
-        if (!email) return;
-        submit.disabled = true;
-        submit.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Enviando...`;
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-          redirectTo: recoveryRedirectUrl(),
-        });
-        if (error) {
-          alert.innerHTML = `<div class="alert alert-danger py-2">${escapeHtml(error.message)}</div>`;
-          submit.disabled = false;
-          submit.textContent = "Enviar link";
-          return;
-        }
-        closeModal();
-        toast("Se o e-mail estiver cadastrado, o link de recuperação foi enviado.");
-      });
-  }
-
-  function isRecoveryLink() {
-    return new URLSearchParams(window.location.hash.slice(1)).get("type") === "recovery";
-  }
-
-  function renderRecoveryPassword() {
-    app.innerHTML = `
-      <main class="login-screen">
-        <div class="container login-panel">
-          <div class="row justify-content-center">
-            <div class="col-12 col-sm-10 col-md-7 col-lg-5 col-xl-4">
-              <div class="login-brand"><img src="${assetUrl("assets/bluecat-logo.png")}" alt="Logo BlueCat Systems" /><h1>BlueCat Systems</h1><p>Portal de Conhecimento</p></div>
-              <section class="login-card">
-                <div class="mb-4"><span class="eyebrow">Recuperação de acesso</span><h2 class="mt-2 mb-1">Escolha uma nova senha</h2><p class="text-muted small mb-0">Use pelo menos 8 caracteres. Depois, entre normalmente no portal.</p></div>
-                <div id="recovery-alert"></div>
-                <form id="recovery-form">
-                  <div class="mb-3"><label class="form-label" for="recovery-password">Nova senha</label><input class="form-control" id="recovery-password" type="password" minlength="8" required autocomplete="new-password" /></div>
-                  <div class="mb-4"><label class="form-label" for="recovery-confirm">Confirmar nova senha</label><input class="form-control" id="recovery-confirm" type="password" minlength="8" required autocomplete="new-password" /></div>
-                  <button class="btn btn-primary w-100" id="recovery-submit" type="submit">Salvar nova senha <i class="bi bi-arrow-right ms-2"></i></button>
-                </form>
-              </section>
-            </div>
-          </div>
-        </div>
-      </main>`;
-    document.getElementById("recovery-form").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const password = document.getElementById("recovery-password").value;
-      const confirmation = document.getElementById("recovery-confirm").value;
-      const alert = document.getElementById("recovery-alert");
-      const submit = document.getElementById("recovery-submit");
-      if (password !== confirmation) {
-        alert.innerHTML = `<div class="alert alert-danger py-2">As senhas não conferem.</div>`;
-        return;
-      }
-      submit.disabled = true;
-      submit.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Salvando...`;
-      const { error } = await supabaseClient.auth.updateUser({ password });
-      if (error) {
-        alert.innerHTML = `<div class="alert alert-danger py-2">${escapeHtml(error.message)}</div>`;
-        submit.disabled = false;
-        submit.innerHTML = `Salvar nova senha <i class="bi bi-arrow-right ms-2"></i>`;
-        return;
-      }
-      await supabaseClient.auth.signOut();
-      window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
-      renderLogin();
-      toast("Senha redefinida com sucesso. Entre com a nova senha.");
-    });
   }
 
   function openAccessRequestModal() {
@@ -1535,10 +1440,6 @@
     try {
       if (hasSupabaseConfig) {
         const { data } = await supabaseClient.auth.getSession();
-        if (isRecoveryLink()) {
-          renderRecoveryPassword();
-          return;
-        }
         if (!data.session) return;
       }
       state.user = await api("/auth/me");
